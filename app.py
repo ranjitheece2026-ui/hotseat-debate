@@ -19,7 +19,7 @@ st.markdown("<h1 class='title'>⚔️ THE HOT SEAT ⚔️</h1>", unsafe_allow_ht
 st.markdown("<p style='text-align: center; color: #888;'>Can you out-debate an AI in front of a relentless judge and crowd?</p>", unsafe_allow_html=True)
 
 # Standard stable model identifier
-MODEL_NAME = "gemini-2.0-flash"
+MODEL_NAME = "gemini-3.8-flash"
 
 # Sidebar API setup
 api_key = st.sidebar.text_input("Enter Gemini API Key:", type="password")
