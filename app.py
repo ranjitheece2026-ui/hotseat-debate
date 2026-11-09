@@ -1,5 +1,6 @@
 import streamlit as st
 import random
+import time
 from google import genai
 from google.genai import errors
 
@@ -18,8 +19,25 @@ st.markdown("""
 st.markdown("<h1 class='title'>⚔️ THE HOT SEAT ⚔️</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #888;'>Can you out-debate an AI in front of a relentless judge and crowd?</p>", unsafe_allow_html=True)
 
-# Standard stable model identifier
 MODEL_NAME = "gemini-3.8-flash"
+
+# Helper function with rate-limit retry logic
+def generate_safe_content(client, prompt):
+    for attempt in range(3):
+        try:
+            res = client.models.generate_content(model=MODEL_NAME, contents=prompt)
+            return res.text
+        except errors.ClientError as e:
+            if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                time.sleep(3)  # Wait for quota window to reset
+                continue
+            raise e
+        except Exception as e:
+            if "429" in str(e):
+                time.sleep(3)
+                continue
+            raise e
+    raise Exception("Rate limit hit. Please wait a few seconds and try again.")
 
 # Sidebar API setup
 api_key = st.sidebar.text_input("Enter Gemini API Key:", type="password")
@@ -60,8 +78,8 @@ if not st.session_state.game_started:
                             f"Deliver a sharp, punchy, 3-sentence opening argument directly attacking "
                             f"their point of view. Keep it under 80 words."
                         )
-                        response = client.models.generate_content(model=MODEL_NAME, contents=first_prompt)
-                        st.session_state.conversation_history.append({"role": "AI Opponent", "text": response.text})
+                        text = generate_safe_content(client, first_prompt)
+                        st.session_state.conversation_history.append({"role": "AI Opponent", "text": text})
                         st.session_state.topic = topic
                         st.session_state.player_stance = player_stance
                         st.session_state.ai_persona = ai_persona
@@ -106,7 +124,7 @@ else:
                 f"entertaining final match critique and declare a winner in 3 sentences."
             )
             with st.spinner("The media judge is calculating the definitive winner..."):
-                final_verdict = client.models.generate_content(model=MODEL_NAME, contents=final_prompt).text
+                final_verdict = generate_safe_content(client, final_prompt)
             st.write(final_verdict)
         except Exception as e:
             st.error(f"Could not load final critique: {str(e)}")
@@ -133,16 +151,19 @@ else:
                             f"integer point swing for the user (positive if witty/logical, negative if weak/defensive) "
                             f"formatted EXACTLY as '[SCORE_CHANGE: <int>]'. Example: 'The crowd loved that burn! [SCORE_CHANGE: 12]'"
                         )
-                        j_response = client.models.generate_content(model=MODEL_NAME, contents=judge_prompt).text
+                        j_text = generate_safe_content(client, judge_prompt)
                         
                         try:
-                            score_delta = int(j_response.split("[SCORE_CHANGE:")[1].split("]")[0].strip())
+                            score_delta = int(j_text.split("[SCORE_CHANGE:")[1].split("]")[0].strip())
                         except Exception:
                             score_delta = random.randint(-8, 8)
                         
                         st.session_state.player_score = max(0, min(100, st.session_state.player_score + score_delta))
-                        st.session_state.conversation_history.append({"role": "Judge", "text": j_response.split("[SCORE_CHANGE:")[0].strip()})
+                        st.session_state.conversation_history.append({"role": "Judge", "text": j_text.split("[SCORE_CHANGE:")[0].strip()})
                     
+                    # 1.5s delay to keep within 5 RPM rate limit
+                    time.sleep(1.5)
+
                     # Step 2: AI Opponent Counter
                     if st.session_state.round_num < 3:
                         with st.spinner("Your opponent is preparing their counter-argument..."):
@@ -151,11 +172,11 @@ else:
                                 f"React directly to their latest point: '{user_response}'. Provide a 3-sentence "
                                 f"scathing rebuttal maintaining your personality. Under 80 words."
                             )
-                            ai_response = client.models.generate_content(model=MODEL_NAME, contents=ai_prompt).text
-                            st.session_state.conversation_history.append({"role": "AI Opponent", "text": ai_response})
+                            ai_text = generate_safe_content(client, ai_prompt)
+                            st.session_state.conversation_history.append({"role": "AI Opponent", "text": ai_text})
                     
                     st.session_state.round_num += 1
                     st.rerun()
 
                 except Exception as e:
-                    st.error(f"Error communicating with AI: {str(e)}")
+                    st.error(f"Error: {str(e)}")
