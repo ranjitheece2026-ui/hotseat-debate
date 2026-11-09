@@ -1,4 +1,3 @@
-# Save this entire script as app.py and run: streamlit run app.py
 import streamlit as st
 import random
 from google import genai
@@ -10,9 +9,8 @@ st.set_page_config(page_title="⚔️ The Hot Seat! AI Debate Arena", page_icon=
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
-    .title { text-align: center; color: #ff4b4b; font-family: 'Courier New', Courier, monospace; font-size: 3rem; font-weight: bold; }
-    .vs-divider { text-align: center; font-size: 24px; font-weight: bold; color: #ffaa00; margin: 15px 0; }
-    .score-label { font-size: 1.2rem; font-weight: bold; text-align: center; }
+    .title { text-align: center; color: #ff4b4b; font-family: 'Courier New', Courier, monospace; font-size: 2.2rem; font-weight: bold; }
+    .score-label { font-size: 1.1rem; font-weight: bold; text-align: center; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -74,7 +72,6 @@ else:
     with c1:
         st.markdown(f"<p class='score-label'>Round: {st.session_state.round_num} / 3</p>", unsafe_allow_html=True)
     with c2:
-        # Visual Crowd approval gauge
         score = st.session_state.player_score
         color = "🔴" if score < 40 else "🟡" if score < 70 else "🟢"
         st.markdown(f"<p class='score-label'>Crowd Approval: {color} {score}%</p>", unsafe_allow_html=True)
@@ -82,7 +79,7 @@ else:
 
     st.markdown("---")
 
-    # Show debate so far
+    # Show debate history
     for message in st.session_state.conversation_history:
         if message["role"] == "AI Opponent":
             st.chat_message("assistant", avatar="🤖").markdown(f"**Opponent ({st.session_state.ai_persona.split('(')[0].strip()}):**\n{message['text']}")
@@ -96,7 +93,6 @@ else:
         st.balloons() if st.session_state.player_score >= 50 else st.snow()
         st.markdown("### 🏆 Final Assessment")
         
-        # Call judge for final verdict
         client = genai.Client(api_key=api_key)
         history_text = "\n".join([f"{m['role']}: {m['text']}" for m in st.session_state.conversation_history])
         final_prompt = (
@@ -120,10 +116,9 @@ else:
             if submit_turn and user_response:
                 st.session_state.conversation_history.append({"role": "Player", "text": user_response})
                 
-                # Fetch API response to judge & fight back
                 client = genai.Client(api_key=api_key)
                 
-                # Step 1: Media Judge evaluates user response and adjust crowd rating
+                # Step 1: Media Judge evaluates user response and adjusts crowd rating
                 with st.spinner("Analyzing your response..."):
                     judge_prompt = (
                         f"Topic: '{st.session_state.topic}'. Opponent made an argument, and user countered with: '{user_response}'. "
@@ -133,19 +128,17 @@ else:
                     )
                     j_response = client.models.generate_content(model="gemini-2.5-flash", contents=judge_prompt).text
                     
-                    # Parse score
                     try:
                         score_delta = int(j_response.split("[SCORE_CHANGE:")[1].split("]")[0].strip())
                     except Exception:
-                        score_delta = random.randint(-8, 8)  # Fallback
+                        score_delta = random.randint(-8, 8)
                     
                     st.session_state.player_score = max(0, min(100, st.session_state.player_score + score_delta))
                     st.session_state.conversation_history.append({"role": "Judge", "text": j_response.split("[SCORE_CHANGE:")[0].strip()})
                 
-                # Step 2: AI Counter Attack (if within game loop)
+                # Step 2: AI Counter Attack
                 if st.session_state.round_num < 3:
-                    with St_spinner := st.spinner("Your opponent is preparing their counter-argument..."):
-                        history_context = "\n".join([f"{m['role']}: {m['text']}" for m in st.session_state.conversation_history])
+                    with st.spinner("Your opponent is preparing their counter-argument..."):
                         ai_prompt = (
                             f"You are {st.session_state.ai_persona} debating on '{st.session_state.topic}'. "
                             f"React directly to their latest point: '{user_response}'. Provide a 3-sentence "
